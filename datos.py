@@ -1,94 +1,116 @@
-import random
-import sqlite3
+# Importar librerias
 import numpy as np
-from scipy.optimize import fsolve
 import pandas as pd
+from scipy.optimize import fsolve
+import sqlite3
 
 class PVModel:
     """
-    Clase para el modelo de un panel fotovoltaico.
+    Clase para el panel fotovoltaico
     """
 
     def __init__(self, num_panels_series, num_panels_parallel):
-        self.R_sh = 545.82  # Resistencia en paralelo
-        self.k_i = 0.037  # Coeficiente de temperatura
-        self.T_n = 298  # Temperatura de referencia
-        self.q = 1.60217646e-19  # Carga del electrón
-        self.n = 1.0  # Factor de idealidad
-        self.K = 1.3806503e-23  # Constante de Boltzmann
-        self.E_g0 = 1.1  # Energía de banda prohibida
-        self.R_s = 0.39  # Resistencia en serie
-        self.num_panels_series = num_panels_series  # Número de paneles en serie
-        self.num_panels_parallel = num_panels_parallel  # Número de paneles en paralelo
-        # Ajustar los valores de I_sc, V_oc y N_s con el número de paneles en serie y en paralelo
-        self.I_sc = 9.35 * num_panels_parallel  # Corriente de cortocircuito
-        self.V_oc = 47.4 * num_panels_series  # Voltaje de circuito abierto
-        self.N_s = 72 * num_panels_series  # Número de células en serie
+        self.R_sh = 545.82
+        self.k_i = 0.037
+        self.T_n = 298
+        self.q = 1.6021e-19
+        self.n = 1.0
+        self.K = 1.3806e-23
+        self.E_g0 = 1.1
+        self.R_s = 0.39
+        self.num_panels_series = num_panels_series
+        self.num_panels_parallel = num_panels_parallel
+        self.I_sc = 9.35 * self.num_panels_parallel
+        self.V_oc = 47.4 * self.num_panels_series
+        self.N_s = 72
 
-    def validate_inputs(self, G, T):
-        """
-        Validar los valores de irradiancia y temperatura.
-        :param G:  Irradiancia (W/m²)
-        :param T:  Temperatura (K)
-        :return:  None
-        """
+    def validate_inputs(self,G,T):
         if not isinstance(G, (int, float)) or G <= 0:
-            raise ValueError("La irradiancia (G) debe ser un número positivo.")
+            raise ValueError('G debe ser un número positivo')
         if not isinstance(T, (int, float)) or T <= 0:
-            raise ValueError("La temperatura (T) debe ser un número positivo.")
+            raise ValueError('T debe ser un número positivo')
         if not isinstance(self.num_panels_series, int) or self.num_panels_series <= 0:
-            raise ValueError("El número de paneles en serie debe ser un entero positivo.")
+            raise ValueError('El número de paneles en serie debe ser un número positivo')
         if not isinstance(self.num_panels_parallel, int) or self.num_panels_parallel <= 0:
-            raise ValueError("El número de paneles en paralelo debe ser un entero positivo.")
+            raise ValueError('El número de paneles en paralelo debe ser un número positivo')
+
 
     def modelo_pv(self, G, T):
-        """
-        Modelo de un panel fotovoltaico.
-        :param G:  Irradiancia (W/m²)
-        :param T:  Temperatura (K)
-        :return:  DataFrame con los resultados, voltaje, corriente y potencia máximos
-        """
-        # Validar los valores de irradiancia y temperatura
-        self.validate_inputs(G, T)
-        # Cálculo de I_rs: corriente de saturación inversa
-        I_rs = self.I_sc / (np.exp((self.q * self.V_oc) / (self.n * self.N_s * self.K * T)) - 1)
-        # Cálculo de I_o: corriente de saturación inversa
-        I_o = I_rs * (T / self.T_n) * np.exp((self.q * self.E_g0 * (1 / self.T_n - 1 / T)) / (self.n * self.K))
-        # Cálculo de I_ph: corriente fotogenerada
-        I_ph = (self.I_sc + self.k_i * (T - 298)) * (G / 1000)
-        # Creación de un vector de voltaje desde 0 hasta V_oc con 1000 puntos
-        Vpv = np.linspace(0, self.V_oc, 1000)
-        # Inicialización de vectores de corriente y potencia
-        Ipv = np.zeros_like(Vpv)
-        Ppv = np.zeros_like(Vpv)
+        self.validate_inputs(G,T)
+        # I_rs corriente de saturación
+        I_rs = self.I_sc / (np.exp((self.q*self.V_oc) / (self.n * self.N_s * self.K * T)) - 1)
+        # I_o corriente de saturación inversa
+        I_o = I_rs * (T/self.T_n) * np.exp((self.q * self.E_g0 * (1/self.T_n - 1 / T)) / (self.n *self.K))
+        # I_ph Corriente fotogenerada
+        I_ph = (self.I_sc + self.k_i * (T-298)) * (G/1000)
 
-        # Función para la ecuación del modelo PV
-        def f(I, V):
-            return (I_ph - I_o * (np.exp((self.q * (V + I * self.R_s)) / (self.n * self.K * self.N_s * T)) - 1) -
+        # Crear un vector de voltajes de 0 hasta V_oc con 10000 puntos
+        Vpv = np.linspace(0, self.V_oc, 100)
+        # Inicializar vectores de corriente y potencia
+        Ipv = np.zeros_like(Vpv) # Inicializar vector de corriente
+        Ppv = np.zeros_like(Vpv) # Inicializar vector de potencia
+
+        # Funcion para resolver la ecuacion no lineal
+        def f(I,V):
+            return (I_ph - I_o * (np.exp((self.q * (V + I * self.R_s)) / (self.n * self.K * self.N_s * T)) - 1)-
                     (V + I * self.R_s) / self.R_sh - I)
-        # Cálculo de la corriente para todo el array de voltaje usando fsolve y vectorización
-        Ipv = fsolve(f, self.I_sc * np.ones_like(Vpv), args=(Vpv))
-        Ppv = Vpv * Ipv  # Cálculo vectorizado de la potencia
+        Ipv = fsolve(f, self.I_sc * np.ones_like(Vpv), args=(Vpv,)) # Resolver la ecuacion no lineal
+        Ppv = Vpv * Ipv # Objetivo del modelo
+
+        resultados = pd.DataFrame({'Corriente (A)': Ipv, 'Voltaje (V)': Vpv, 'Potencia (W)': Ppv})
+        max_power_idx = resultados['Potencia (W)'].idxmax()
+        Vmpp = resultados.loc[max_power_idx, 'Voltaje (V)']
+        Impp = resultados.loc[max_power_idx, 'Corriente (A)']
+        Pmax = resultados.loc[max_power_idx, 'Potencia (W)']
+        return resultados, Vmpp, Impp, Pmax
 
 def main():
-  cantidad_registros = 1050000
-  calculos = generar_bd(cantidad_registros)
+    pv_model = PVModel(4, 3)
+    G = 1000
+    T = 25
+    resultados, Vmpp, Impp, Pmax = pv_model.modelo_pv(G, T)
+    print(resultados.head())
+    print(f'Vmp = {Vmpp:.2f} V')
+    print(f'Imp = {Impp:.2f} A')
+    print(f'Pmax = {Pmax:.2f} W')
 
-  # Conexion a la base de datos
-  conn = sqlite3.connect("calculos.db") # Si no se tiene la base de datos, se crea
-  c = conn.cursor() # Se crea un cursor para ejecutar las sentencias SQL
+if __name__ == '__main__':
+    main()
 
-  # Crear una tabla si no existe
-  c.execute('''CREATE TABLE IF NOT EXISTS calculos (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              G INTEGER,
-              T INTEGER)''')
-  # Insertar los registros en la tabla
-  c.executemany('INSERT INTO calculos (G, T) VALUES (?, ?)', calculos)
-  conn.commit() # Guardar los cambios en la base de datos
-  conn.close() # Cerrar la conexión a la base de datos
 
-  print("Base creado con exito")
+def create_table(conn):
 
-if __name__ == "__main__":
-  main()
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS max_power_results (
+            temperature INTEGER,
+            radiation INTEGER,
+            max_power REAL
+        )
+    ''')
+    conn.commit()
+
+def main():
+    pv_model = PVModel(4, 3)
+
+
+    temperature_range = range(278, 310)
+    radiation_range = range(500, 1100, 100)
+    connection = sqlite3.connect('pv_results.db')
+    
+    create_table(connection)
+
+    for T in temperature_range:
+        for G in radiation_range:
+            resultados, Vmpp, Impp, Pmax = pv_model.modelo_pv(G, T)
+            max_power = Pmax
+            connection.execute('''
+                INSERT INTO max_power_results (temperature, radiation, max_power)
+                VALUES (?, ?, ?)
+            ''', (T, G, max_power))
+
+    connection.commit()
+    connection.close()
+
+if __name__ == '__main__':
+    main()
