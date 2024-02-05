@@ -1,4 +1,5 @@
-from flask import Flask, request, render_template_string # Importar Flask para crear la aplicación web,  y request para manejar solicitudes HTTP y render_template_string para renderizar plantillas
+from flask import Flask, request, render_template, render_template_string # Importar Flask para crear la aplicación web,  y request para manejar solicitudes HTTP y render_template_string para renderizar plantillas
+import os
 import sqlite3
 
 app = Flask(__name__) # Crear una aplicación de Flask
@@ -16,6 +17,7 @@ def index():
     Página para calcular la potencia máxima de los paneles dadas una temperatura y una irradiancia.
     """
     return render_template_string('''
+        <img src='https://media.istockphoto.com/id/1473638950/es/foto/t%C3%A9cnicos-que-llevan-m%C3%B3dulo-solar-fotovoltaico-mientras-instalan-el-sistema-de-paneles-solares.webp?b=1&s=612x612&w=0&k=20&c=uFpr23Bz5hVWYIoNKkCRod6NwJEhqg9Wcaxy7U7SBQI='/>
         <form action="/buscar" method="post">
             <h1>Escriba un valor de irradiancia entre 500 y 1000 en centenas</h1>
                 <label for="valor1">Valor:</label>
@@ -36,13 +38,15 @@ def buscar():
     conn = get_db_connection()
     registro = None
     
-    registro = conn.execute('SELECT max_power FROM max_power_results WHERE radiation = ? and temperature = ?',(valor1,valor2)).fetchone()
+    registro = conn.execute('SELECT * FROM max_power_results WHERE radiation = ? and temperature = ?',(valor1,valor2)).fetchone()
     conn.close()
     
     if registro:
       
         return render_template_string('''
-            < img src='panel.jpg'>
+            <img src='https://media.istockphoto.com/id/1473638950/es/foto/t%C3%A9cnicos-que-llevan-m%C3%B3dulo-solar-fotovoltaico-mientras-instalan-el-sistema-de-paneles-solares.webp?b=1&s=612x612&w=0&k=20&c=uFpr23Bz5hVWYIoNKkCRod6NwJEhqg9Wcaxy7U7SBQI='/>
+            <p>Irradiancia: {{ registro['radiation'] }}</p>
+            <p>Temperatura: {{ registro['temperature'] }}</p>
             <p>Potencia Máxima: {{ registro['max_power'] }}</p>
             <a href="/">Volver</a>
         ''', registro=registro)
