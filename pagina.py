@@ -16,24 +16,13 @@ def index():
     Página para calcular la potencia máxima de los paneles dadas una temperatura y una irradiancia.
     """
     return render_template_string('''
-        <h1>Escriba un valor de irradiancia entre 500 y 1000 en centenas</h1>
         <form action="/buscar" method="post">
-            <label for="tipo1">Buscar por:</label>
-            <select name="tipo1" id="tipo1">
-                <option value="radiation">Número</option> 
-            </select>
-            <label for="valor1">Valor:</label>
-            <input type="text" name="valor1" id="valor1" required>
-            <button type="submit">Buscar</button>
-        </form>
-        <h2>Escriba un valor de temperatura entre 278 y 309 grados Kelvin</h2>
-        <form action="/buscar" method="post">
-            <label for="tipo2">Buscar por:</label>
-            <select name="tipo2" id="tipo2">
-                <option value="temperature">Número</option> 
-            </select>
-            <label for="valor2">Valor:</label>
-            <input type="text" name="valor2" id="valor2" required>
+            <h1>Escriba un valor de irradiancia entre 500 y 1000 en centenas</h1>
+                <label for="valor1">Valor:</label>
+                <input type="text" name="valor1" id="valor1" required>
+            <h2>Escriba un valor de temperatura entre 278 y 309 grados Kelvin</h2>
+                <label for="valor2">Valor:</label>
+                <input type="text" name="valor2" id="valor2" required>
             <button type="submit">Buscar</button>
         </form>
     ''')
@@ -42,22 +31,18 @@ def index():
 @app.route('/buscar', methods=['POST'])
 def buscar():
    
-    tipo1 = request.form['tipo1']
     valor1 = request.form['valor1']
-    tipo2 = request.form['tipo2']
     valor2 = request.form['valor2']
     conn = get_db_connection()
-    registro1 = None
-    registro2 = None
-
-    if tipo1 == 'radiation' and tipo2 == 'radiation': # Buscar por número
-        registro = conn.execute('SELECT * FROM pv_results WHERE radiation = ?', (valor1,)).fetchone()
-        registro = conn.execute('SELECT * FROM pv_results WHERE temperature = ?', (valor2,)).fetchone()
+    registro = None
+    
+    registro = conn.execute('SELECT max_power FROM max_power_results WHERE radiation = ? and temperature = ?',(valor1,valor2)).fetchone()
     conn.close()
     
     if registro:
       
         return render_template_string('''
+            < img src='panel.jpg'>
             <p>Potencia Máxima: {{ registro['max_power'] }}</p>
             <a href="/">Volver</a>
         ''', registro=registro)
